@@ -25,7 +25,18 @@ from meshgraphnets.common import NodeType
 
 
 def _parse(proto, meta):
-  """Parses a trajectory from tf.Example."""
+  """
+  Parses a trajectory from tf.Example.
+  
+  At the end of the loop, out is a dictionary:
+  {
+  'cells'     : [401, 3028, 3] int32  (tiled)
+  'mesh_pos'  : [401, 1579, 2] float32 (tiled)
+  'node_type' : [401, 1579, 1] int32
+  'world_pos' : [401, 1579, 3] float32
+  }
+  
+  """
   feature_lists = {k: tf.io.VarLenFeature(tf.string)
                    for k in meta['field_names']}
   features = tf.io.parse_single_example(proto, feature_lists)
@@ -56,7 +67,21 @@ def load_dataset(path, split):
 
 
 def add_targets(ds, fields, add_history):
-  """Adds target and optionally history fields to dataframe."""
+  """
+  Adds target and optionally history fields to dataframe.
+  
+  After add_targets(), each instance in the dataset looks like:
+  {
+  'cells'             : [399, 3028, 3] int32  (tiled)
+  'mesh_pos'          : [399, 1579, 2] float32 (tiled)
+  'node_type'         : [399, 1579, 1] int32
+  "world_pos"         : [399, 1579, 3] float32, ← current
+  "prev|world_pos"    : [399, 1579, 3] float32, ← (optional history)
+  "target|world_pos"  : [399, 1579, 3] float32, ← next-step label
+  }
+  
+  """
+  
   def fn(trajectory):
     out = {}
     for key, val in trajectory.items():
@@ -70,7 +95,22 @@ def add_targets(ds, fields, add_history):
 
 
 def split_and_preprocess(ds, noise_field, noise_scale, noise_gamma):
-  """Splits trajectories into frames, and adds training noise."""
+  """
+  Splits trajectories into frames, and adds training noise.
+  
+  After split_and_preprocess(), each instance in the dataset looks like:
+  {
+  'cells'             : [3028, 3] int32
+  'mesh_pos'          : [1579, 2] float32
+  'node_type'         : [1579, 1] int32
+  "world_pos"         : [1579, 3] float32, ← current
+  "prev|world_pos"    : [1579, 3] float32, ← (optional history)
+  "target|world_pos"  : [1579, 3] float32, ← next-step label
+  }
+  
+  Each element is a single, fully-formed mesh frame that already contains its supervision pair.
+  
+  """
   def add_noise(frame):
     noise = tf.random.normal(tf.shape(frame[noise_field]),
                              stddev=noise_scale, dtype=tf.float32)
