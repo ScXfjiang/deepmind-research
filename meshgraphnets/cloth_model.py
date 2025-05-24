@@ -38,18 +38,37 @@ class Model(snt.AbstractModule):
           size=7, name='edge_normalizer')  # 2D coord + 3D coord + 2*length = 7
 
   def _build_graph(self, inputs, is_training):
-    """Builds input graph."""
+    """
+    Builds input graph.
+    
+    The inputs of the model is a dict:
+    {
+    'cells'             : [3028, 3] int32
+    'mesh_pos'          : [1579, 2] float32
+    'node_type'         : [1579, 1] int32
+    "world_pos"         : [1579, 3] float32, ← current
+    "prev|world_pos"    : [1579, 3] float32, ← (optional history)
+    "target|world_pos"  : [1579, 3] float32, ← next-step label
+    }
+    """
     # construct graph nodes
+    # (1579, 3)
     velocity = inputs['world_pos'] - inputs['prev|world_pos']
+    # (1579, 9)
     node_type = tf.one_hot(inputs['node_type'][:, 0], common.NodeType.SIZE)
+    # (1579, 12)
     node_features = tf.concat([velocity, node_type], axis=-1)
 
     # construct graph edges
+    # (max 9084,), the real shape is unknown until runtime because we need to remove dups
     senders, receivers = common.triangles_to_edges(inputs['cells'])
+    # (max 9084, 3)
     relative_world_pos = (tf.gather(inputs['world_pos'], senders) -
                           tf.gather(inputs['world_pos'], receivers))
+    # (max 9084, 2)
     relative_mesh_pos = (tf.gather(inputs['mesh_pos'], senders) -
                          tf.gather(inputs['mesh_pos'], receivers))
+    # (max 9084, 7)
     edge_features = tf.concat([
         relative_world_pos,
         tf.norm(relative_world_pos, axis=-1, keepdims=True),

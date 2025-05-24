@@ -108,6 +108,7 @@ class EncodeProcessDecode(snt.AbstractModule):
   def _decoder(self, graph):
     """Decodes node features from graph."""
     with tf.variable_scope('decoder'):
+      # self._output_size is 3, which means acceleration of each vertex
       decoder = self._make_mlp(self._output_size, layer_norm=False)
       return decoder(graph.node_features)
 
